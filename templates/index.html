@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Customer-Churn FastAPI UI</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background: #f8f9fa;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .step {
+      display: none;
+      padding: 1rem;
+      border: 1px solid #ccc;
+      margin: .5rem 0;
+      background: #fff;
+      border-radius: 6px;
+    }
+    .step.active {
+      display: block;
+    }
+    label {
+      font-weight: bold;
+      margin-right: .5rem;
+    }
+    input, select, button {
+      margin: .25rem 0;
+      width: 100%;
+      padding: .5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      padding: .5rem 1rem;
+      border: none;
+      background: #007bff;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+    button:disabled {
+      background: #aaa;
+    }
+    #log {
+      white-space: pre-wrap;
+      font-size: .85rem;
+      height: 200px;
+      overflow: auto;
+      background: #000;
+      color: #0f0;
+      padding: .5rem;
+      border-radius: 4px;
+      margin-top: 1rem;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 1rem;
+    }
+    th, td {
+      padding: 6px 8px;
+      border: 1px solid #ddd;
+      text-align: left;
+    }
+    h1, h2, h3 {
+      color: #007bff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Customer-Churn FastAPI&nbsp;+&nbsp;GenAI</h1>
+
+    <!-- STEP 1 -->
+    <div id="step1" class="step active">
+      <h2>1. Upload &nbsp;📤</h2>
+      <input type="file" id="fileUpload" accept=".csv">
+      <label>Target column:</label>
+      <input type="text" id="target" value="Churn">
+      <button onclick="upload()">Upload</button>
+    </div>
+
+    <!-- STEP 2 -->
+    <div id="step2" class="step">
+      <h2>2. Clean&nbsp;🧹</h2>
+      <label>Handle missing:</label>
+      <select id="missing">
+        <option value="impute">Impute</option>
+        <option value="drop">Drop</option>
+      </select>
+      <label>Encode:</label>
+      <select id="encode">
+        <option value="label">Label</option>
+        <option value="onehot">One-Hot</option>
+      </select>
+      <label>Scale:</label>
+      <select id="scale">
+        <option value="standard">Standard</option>
+        <option value="minmax">Min-Max</option>
+        <option value="none">None</option>
+      </select>
+      <button onclick="clean()">Clean</button>
+    </div>
+
+    <!-- STEP 3 -->
+    <div id="step3" class="step">
+      <h2>3. Train&nbsp;🤖</h2>
+      <div id="modelList"></div>
+      <button onclick="train()">Train</button>
+    </div>
+
+    <!-- STEP 4 -->
+    <div id="step4" class="step">
+      <h2>4. Predict&nbsp;🔮</h2>
+      <input type="file" id="predFile" accept=".csv">
+      <label>Model:</label>
+      <select id="modelSelect"></select>
+      <button onclick="predict()">Predict</button>
+      <div id="predictionsTable"></div>
+    </div>
+
+    <!-- LOG -->
+    <h3>Console&nbsp;📋</h3>
+    <div id="log"></div>
+  </div>
+
+<script>
+let sessionId = null;
+let models = ["LogisticRegression", "RandomForest", "XGBoost"];
+
+function log(txt){document.getElementById('log').textContent += txt + "\n";}
+async function api(method,url,data=null){
+  const opts = {method};
+  if(data){opts.body=data; opts.headers={}};
+  const r = await fetch(url,opts);
+  if(!r.ok) throw await r.json();
+  return r.json();
+}
+
+// ---------- 1. UPLOAD ----------
+async function upload(){
+  const file = document.getElementById('fileUpload').files[0];
+  const target = document.getElementById('target').value;
+  if(!file){alert('Choose file');return;}
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('target', target);
+
+  log("Uploading...");
+  const res = await api('POST','http://localhost:8000/upload', fd);
+  sessionId = res.session_id;
+  log(`Session: ${sessionId}`);
+  showStep(2);
+}
+
+// ---------- 2. CLEAN ----------
+async function clean(){
+  const body = {
+    session_id: sessionId,   // ← always present
+    missing_strategy: document.getElementById('missing').value,
+    encode: document.getElementById('encode').value,
+    scale: document.getElementById('scale').value
+  };
+  log("Cleaning...");
+  fetch('http://localhost:8000/data_cleaning', {
+  method: 'POST',
+  headers: {'Content-Type':'application/json'},
+  body: JSON.stringify(body)
+  });
+  log("Cleaning done.");
+  showStep(3);
+}
+
+
+    // ---------- 3. TRAIN ----------
+    function populateModelCheck() {
+      const div = document.getElementById('modelList');
+      models.forEach(m => {
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = m;
+        cb.id = m;
+        const lbl = document.createElement('label');
+        lbl.htmlFor = m;
+        lbl.innerText = m;
+        div.appendChild(cb);
+        div.appendChild(lbl);
+        div.appendChild(document.createElement('br'));
+      });
+    }
+    populateModelCheck();
+
+    async function train() {
+      const selected = [...document.querySelectorAll('#modelList input:checked')].map(cb => cb.value);
+      if (!selected.length) {
+        alert('Pick at least one model');
+        return;
+      }
+      log("Training...");
+      const body = { session_id: sessionId, models: selected };
+      try {
+        const res = await fetch('http://localhost:8000/train_model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const error = await res.json();
+          log(`Training failed: ${JSON.stringify(error, null, 2)}`);
+          return;
+        }
+        const result = await res.json();
+        log("Training completed. Results:");
+        result.results.forEach(result => {
+          log(`Model: ${result.model}`);
+          log(`  Accuracy: ${result.accuracy}`);
+          log(`  Precision: ${result.precision}`);
+          log(`  Recall: ${result.recall}`);
+          log(`  F1: ${result.f1}`);
+          log(`  Confusion Matrix: ${JSON.stringify(result.confusion_matrix)}`);
+        });
+        populateModelSelect(selected);
+        showStep(4);
+      } catch (error) {
+        log(`Training failed: ${JSON.stringify(error, null, 2)}`);
+      }
+    }
+
+    function populateModelSelect(list) {
+      const sel = document.getElementById('modelSelect');
+      sel.innerHTML = '';
+      list.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.innerText = m;
+        sel.appendChild(opt);
+      });
+    }
+// ---------- 4. PREDICT ----------
+async function predict() {
+  const file = document.getElementById('predFile').files[0];
+  const model = document.getElementById('modelSelect').value;
+  if (!file) {
+    alert('Choose file');
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('model_name', model);
+
+  log("Predicting...");
+  const res = await fetch('http://localhost:8000/predict', {
+    method: 'POST',
+    body: fd
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    log(`Prediction failed: ${JSON.stringify(error, null, 2)}`);
+    return;
+  }
+
+  const blob = await res.blob();
+  const text = await blob.text();
+
+  const predictionsTable = document.getElementById('predictionsTable');
+  predictionsTable.innerHTML = `
+    <table>
+      <thead>
+        <tr><th>CustomerID</th><th>Prediction</th><th>Explanation</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>`;
+
+  // Robust CSV parsing: handles commas inside quoted fields
+  const rows = text.trim().split(/\r?\n/);
+  const parseCSVRow = row => {
+    const pattern = /(".*?"|[^",\s]+)(?=\s*,|\s*$)/g;
+    const matches = [];
+    let match;
+    while ((match = pattern.exec(row)) !== null) {
+      let val = match[0];
+      if (val.startsWith('"') && val.endsWith('"')) {
+        val = val.slice(1, -1).replace(/""/g, '"'); // Handle escaped quotes
+      }
+      matches.push(val);
+    }
+    return matches;
+  };
+
+  const header = parseCSVRow(rows[0]);
+  const customerIdIndex = header.indexOf('customerID');
+  const predictionIndex = header.indexOf('prediction');
+  const explanationIndex = header.indexOf('explanation');
+
+  rows.slice(1).forEach(row => {
+    if (!row.trim()) return;
+    const columns = parseCSVRow(row);
+    const customerId = columns[customerIdIndex];
+    const prediction = columns[predictionIndex];
+    const explanation = columns[explanationIndex];
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${customerId}</td><td>${prediction}</td><td>${explanation}</td>`;
+    predictionsTable.querySelector('tbody').appendChild(tr);
+  });
+
+  log("Predictions displayed.");
+
+  // Provide download link for the CSV file
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='predictions.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  log("Predictions.csv downloaded");
+}
+function showStep(n){
+  [...document.querySelectorAll('.step')].forEach(s=>s.classList.remove('active'));
+  document.getElementById(`step${n}`).classList.add('active');
+}
+</script>
+</body>
+</html>

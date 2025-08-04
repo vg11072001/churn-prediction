@@ -1,0 +1,4 @@
+customerID,gender,SeniorCitizen,Partner,Dependents,tenure,PhoneService,MultipleLines,InternetService,OnlineSecurity,OnlineBackup,DeviceProtection,TechSupport,StreamingTV,StreamingMovies,Contract,MonthlyCharges,TotalCharges
+9053-KXLQN,Male,1,Yes,Yes,4,Yes,Yes,Fiber optic,No,Yes,Yes,No,Yes,Yes,Month-to-month,89.95,362.3
+9470-BGJPP,Male,0,No,No,55,Yes,No,DSL,Yes,Yes,Yes,Yes,No,No,Two year,75.15,4124.25
+8891-QPCGB,Female,0,Yes,Yes,24,Yes,Yes,Fiber optic,No,No,Yes,No,Yes,Yes,Month-to-month,79.85,1904.0
