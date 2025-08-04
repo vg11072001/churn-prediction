@@ -3,7 +3,7 @@ import requests
 
 # Your OpenRouter API credentials
 headers = {
-    "Authorization": "Bearer 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",
+    "Authorization": "Bearer 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",
     "Content-Type": "application/json"
 }
 

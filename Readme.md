@@ -102,6 +102,20 @@ python -m http.server 8080
 
 * CSV file with predictions and explanations.
 
+## Steps
+
+### Upload:
+![alt text](asset/image.png)
+
+### Cleaning dataset 
+![alt text](asset/image1.png)
+
+### Training
+![alt text](asset/image2.png)
+
+### Prediction
+![alt text](asset/image3.png)
+![alt text](asset/image4.png)
 
 
 ## Example Files
